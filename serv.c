@@ -29,3 +29,8 @@ int main(int argc, char **argv)
         close(connfd);
     }
 }
+
+int SUM(int x, int y)
+{
+    return x+y;
+}
