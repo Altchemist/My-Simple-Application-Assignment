@@ -16,15 +16,17 @@ int main(int argc, char **argv)
     servaddr.sin_port = htons(52000);
 
 
-    Bind(listenfd, LISTENQ);
+    bind(listenfd, (SockAddr *) &servaddr, sizeof(servaddr));
 
+    listen(listenfd, LISTENQ);
+    
     for(;;)
     {
         connfd = accept(listenfd, (SockAddr*) NULL, NULL);
 
         ticks = time(NULL);
         snprintf(buff, sizeof(buff), "%.24s\r\n", ctime(&ticks));
-        Write(connfd, buff, strlen(buff));
+        write(connfd, buff, strlen(buff));
 
         close(connfd);
     }
@@ -34,3 +36,4 @@ int SUM(int x, int y)
 {
     return x+y;
 }
+

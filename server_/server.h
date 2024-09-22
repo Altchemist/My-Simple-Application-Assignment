@@ -6,6 +6,11 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <stdio.h>
+#include <string.h>
+#include <time.h>
+#include <unistd.h>
+#include <stdlib.h>
+
 #define LISTENQ 1024
 #define MAXLINE 4096
 #define SockAddr struct sockaddr
