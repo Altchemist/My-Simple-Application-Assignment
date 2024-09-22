@@ -9,7 +9,7 @@ int main(int argc, char **argv)
 
     listenfd = socket(AF_INET, SOCK_STREAM, 0);
 
-    bzer(&servaddr, sizeof(servaddr));
+    bzero(&servaddr, sizeof(servaddr));
 
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
