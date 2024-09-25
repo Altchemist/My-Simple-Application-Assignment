@@ -33,6 +33,7 @@ int main(int argc, char **argv)
         printf("connect error\n");
     }
 
+    int terminate = 1;
 
     while (fgets(sendBuffer, MAXLINE, stdin) != NULL)
     {

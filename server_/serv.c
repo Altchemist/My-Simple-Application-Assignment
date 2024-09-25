@@ -4,7 +4,7 @@
 void TIME(int connfd);
 void USERS(int connfd);
 void SUM(int connfd, int x, int y);
-void FILES(const char filename[10]);
+void FILES(int connfd, const char filename[10]);
 void EXIT(int connfd);
 
 
@@ -16,7 +16,7 @@ int main(int argc, char **argv)
     char buff[MAXLINE];
     pid_t pid;
 
-    char decision[] = "USERS";
+    char decision[] = "FILES";
 
     if(argc>1)
     {
@@ -82,7 +82,7 @@ int main(int argc, char **argv)
 
             if(strcmp(decision, "FILES")==0)
             {
-                printf("FILES NOT IMPLEMENTED");
+                FILES(connfd, "file1.txt");
             }
 
             if(strcmp(decision, "EXIT")==0)
@@ -136,10 +136,25 @@ void USERS(int connfd)
     fclose(userfile);
 }
 
-void FILES(const char filename[10])
+void FILES(int connfd, const char filename[10])
 {
-    FILE *userfile = fopen(filename, "r");
+    FILE *file = fopen(filename, "r");
 
+    char readBuffer[100];
+
+    if(file == NULL)
+    {
+        sprintf(readBuffer, "File error: The file does not exist\n");
+        write(connfd, readBuffer, strlen(readBuffer));
+        printf("error\n");
+    }
+
+    while(fgets(readBuffer, 100, file))
+    {
+        write(connfd, readBuffer, strlen(readBuffer));
+    }
+
+    fclose(file);
 }
 
 void EXIT(int connfd)

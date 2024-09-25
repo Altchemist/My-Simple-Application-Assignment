@@ -9,6 +9,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <termios.h>
+#include <termio.h>
 
 #define	bzero(ptr,n)		memset(ptr, 0, n)
 #define SockAddr struct sockaddr
