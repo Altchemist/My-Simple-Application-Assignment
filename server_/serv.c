@@ -2,7 +2,7 @@
 
 /*Prototyping functions*/
 void TIME(int connfd);
-void USERS();
+void USERS(int connfd);
 void SUM(int connfd, int x, int y);
 void FILES(const char filename[10]);
 void EXIT(int connfd);
@@ -16,7 +16,7 @@ int main(int argc, char **argv)
     char buff[MAXLINE];
     pid_t pid;
 
-    char decision[] = "TIME";
+    char decision[] = "USERS";
 
     if(argc>1)
     {
@@ -49,35 +49,35 @@ int main(int argc, char **argv)
         {
             close(listenfd);
 
-         again:
-            while ( (n = read(connfd, buff, MAXLINE)) > 0)
-            {
-                write(connfd, buff, n);
-                if (n < 0 && errno == EINTR)
-                {
-                    goto again;
-                }
-                else if (n < 0)
-                {
-                    printf("str_echo: read error");
+        //  again:
+        //     while ( (n = read(connfd, buff, MAXLINE)) > 0)
+        //     {
+        //         write(connfd, buff, n);
+        //         if (n < 0 && errno == EINTR)
+        //         {
+        //             goto again;
+        //         }
+        //         else if (n < 0)
+        //         {
+        //             printf("str_echo: read error");
 
-                }
-            }
+        //         }
+        //     }
 
 
             if(strcmp(decision, "TIME")==0)
             {
-                // TIME(connfd);
+                TIME(connfd);
             }
             
             if(strcmp(decision, "USERS")==0)
             {
-                printf("USERS NOT IMPLEMENTED");
+                USERS(connfd);               
             }
 
             if(strcmp(decision, "SUM")==0)
             {
-                printf("SUM NOT IMPLEMENTED");
+                SUM(connfd, 5,6);
             }
 
             if(strcmp(decision, "FILES")==0)
@@ -87,7 +87,7 @@ int main(int argc, char **argv)
 
             if(strcmp(decision, "EXIT")==0)
             {
-                // EXIT(connfd);
+                EXIT(connfd);
             }
 
             close(connfd);
@@ -96,6 +96,7 @@ int main(int argc, char **argv)
         close(connfd);
     }
 }
+
 
 void SUM(int connfd, int x, int y)
 {
@@ -115,15 +116,21 @@ void TIME(int connfd)
     write(connfd, buff, strlen(buff));
 }
 
-void USERS()
+void USERS(int connfd)
 {
     FILE *userfile = fopen("users.txt", "r");
-    // char *userArray[3] = calloc(100, sizeof(char));
+    
     char readBuffer[100];
+
+    if(userfile==NULL)
+    {
+        sprintf(readBuffer, "File error: The file does not exist\n");
+        write(connfd, readBuffer, strlen(readBuffer));
+    }
 
     while(fgets(readBuffer, 100, userfile))
     {
-        printf("HELL");
+        write(connfd, readBuffer, strlen(readBuffer));
     }
 
     fclose(userfile);
@@ -132,6 +139,7 @@ void USERS()
 void FILES(const char filename[10])
 {
     FILE *userfile = fopen(filename, "r");
+
 }
 
 void EXIT(int connfd)

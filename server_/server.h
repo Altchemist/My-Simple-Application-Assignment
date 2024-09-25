@@ -11,6 +11,8 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <termio.h>
+#include <termios.h>
 
 #define LISTENQ 1024
 #define MAXLINE 4096
