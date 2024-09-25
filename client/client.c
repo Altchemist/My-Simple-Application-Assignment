@@ -4,7 +4,9 @@ int main(int argc, char **argv)
 {
     int sockfd, n;
 
-    char recvline[MAXLINE+1];
+    char receiveBuffer[MAXLINE];
+    char sendBuffer[MAXLINE];
+
     struct sockaddr_in servaddr;
 
     if(argc!=2)
@@ -31,18 +33,18 @@ int main(int argc, char **argv)
         printf("connect error\n");
     }
 
-    while (( n = read(sockfd, recvline, MAXLINE)) > 0)
+
+    while (fgets(sendBuffer, MAXLINE, stdin) != NULL)
     {
-        recvline[n] = 0;
-        if (fputs(recvline, stdout) == EOF)
+        write(sockfd, sendBuffer, strlen(sendBuffer));
+
+        if (read(sockfd, receiveBuffer, MAXLINE) == 0)
         {
-            printf("fputs error\n");
+            printf("Error server output");
         }
-
-        if (n<0){
-            printf("read error\n");
-        }
-
-        exit(0);
+        
+        fputs(receiveBuffer, stdout);
     }
+
+    exit(0);
 }

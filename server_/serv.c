@@ -1,12 +1,31 @@
 #include "server.h"
 
+/*Prototyping functions*/
+void TIME(int connfd);
+void USERS();
+void SUM(int connfd, int x, int y);
+void FILES(const char filename[10]);
+void EXIT(int connfd);
+
+
 int main(int argc, char **argv)
 {
     int listenfd, connfd;
+    ssize_t n;
     struct sockaddr_in servaddr;
     char buff[MAXLINE];
     pid_t pid;
 
+    char decision[] = "TIME";
+
+    if(argc>1)
+    {
+        /*Max client and Max time passed as argument*/
+        int max_client = atoi(argv[1]);
+        int max_time = atoi(argv[2]);
+    }
+
+    
     time_t ticks;
 
     listenfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -29,9 +48,48 @@ int main(int argc, char **argv)
         if ( (pid==fork()) == 0)
         {
             close(listenfd);
-            ticks = time(NULL);
-            snprintf(buff, sizeof(buff), "%.24s\r\n", ctime(&ticks));
-            write(connfd, buff, strlen(buff));
+
+         again:
+            while ( (n = read(connfd, buff, MAXLINE)) > 0)
+            {
+                write(connfd, buff, n);
+                if (n < 0 && errno == EINTR)
+                {
+                    goto again;
+                }
+                else if (n < 0)
+                {
+                    printf("str_echo: read error");
+
+                }
+            }
+
+
+            if(strcmp(decision, "TIME")==0)
+            {
+                // TIME(connfd);
+            }
+            
+            if(strcmp(decision, "USERS")==0)
+            {
+                printf("USERS NOT IMPLEMENTED");
+            }
+
+            if(strcmp(decision, "SUM")==0)
+            {
+                printf("SUM NOT IMPLEMENTED");
+            }
+
+            if(strcmp(decision, "FILES")==0)
+            {
+                printf("FILES NOT IMPLEMENTED");
+            }
+
+            if(strcmp(decision, "EXIT")==0)
+            {
+                // EXIT(connfd);
+            }
+
             close(connfd);
             exit(0);
         }
@@ -39,8 +97,46 @@ int main(int argc, char **argv)
     }
 }
 
-int SUM(int x, int y)
+void SUM(int connfd, int x, int y)
 {
-    return x+y;
+    int value = x+y;
+    char buffer[40];
+    sprintf(buffer, "The sum of %d and %d is : %d",x,y,value);
+    write(connfd, buffer, strlen(buffer));
 }
 
+void TIME(int connfd)
+{
+    char buff[MAXLINE];
+    time_t ticks;
+    
+    ticks = time(NULL);
+    snprintf(buff, sizeof(buff), "%.24s\r\n", ctime(&ticks));
+    write(connfd, buff, strlen(buff));
+}
+
+void USERS()
+{
+    FILE *userfile = fopen("users.txt", "r");
+    // char *userArray[3] = calloc(100, sizeof(char));
+    char readBuffer[100];
+
+    while(fgets(readBuffer, 100, userfile))
+    {
+        printf("HELL");
+    }
+
+    fclose(userfile);
+}
+
+void FILES(const char filename[10])
+{
+    FILE *userfile = fopen(filename, "r");
+}
+
+void EXIT(int connfd)
+{
+    char buff[30]= "Terminating your MSA Session !";
+
+    write(connfd, buff, strlen(buff));
+}
