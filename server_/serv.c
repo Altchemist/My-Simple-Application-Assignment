@@ -6,6 +6,11 @@ void USERS(int connfd);
 void SUM(int connfd, int x, int y);
 void FILES(int connfd, const char filename[10]);
 void EXIT(int connfd);
+typedef void Sigfunc(int);
+Sigfunc *signal(int signo, Sigfunc *func);
+void sig_chld(int signo);
+void* process_request(void* connfd, void* listenfd, void** clientPtr)
+
 
 
 int main(int argc, char **argv)
@@ -15,18 +20,29 @@ int main(int argc, char **argv)
     struct sockaddr_in servaddr;
     char buff[MAXLINE];
     pid_t pid;
-
     char decision[] = "FILES";
+    int i;
+
+    int max_client = 1;
+    int max_time = 120;
+    int client[max_client];
+    int sockfd[max_client];
+    pthread_t thread_id[max_client];
 
     if(argc>1)
     {
         /*Max client and Max time passed as argument*/
-        int max_client = atoi(argv[1]);
-        int max_time = atoi(argv[2]);
+        max_client = atoi(argv[1]);
+        max_time = atoi(argv[2]);
+    }
+    else
+    {
+        int sockfd[max_client];
+        pthread_t thread_id[max_client];
+        int client[max_client];
     }
 
-    
-    time_t ticks;
+    int threadCount = 0;
 
     listenfd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -45,55 +61,25 @@ int main(int argc, char **argv)
     {
         connfd = accept(listenfd, (SockAddr*) NULL, NULL);
 
-        if ( (pid==fork()) == 0)
+        if(threadCount==max_client)
         {
-            close(listenfd);
-
-        //  again:
-        //     while ( (n = read(connfd, buff, MAXLINE)) > 0)
-        //     {
-        //         write(connfd, buff, n);
-        //         if (n < 0 && errno == EINTR)
-        //         {
-        //             goto again;
-        //         }
-        //         else if (n < 0)
-        //         {
-        //             printf("str_echo: read error");
-
-        //         }
-        //     }
-
-
-            if(strcmp(decision, "TIME")==0)
-            {
-                TIME(connfd);
-            }
-            
-            if(strcmp(decision, "USERS")==0)
-            {
-                USERS(connfd);               
-            }
-
-            if(strcmp(decision, "SUM")==0)
-            {
-                SUM(connfd, 5,6);
-            }
-
-            if(strcmp(decision, "FILES")==0)
-            {
-                FILES(connfd, "file1.txt");
-            }
-
-            if(strcmp(decision, "EXIT")==0)
-            {
-                EXIT(connfd);
-            }
-
+            sprintf(buff, "Max amount of client accepted reached : %d", max_client);
+            write(connfd, buff, strlen(buff));
+        }
+        else
+        {
             close(connfd);
+            for(i=0; i<max_client; i++)
+            {
+                /*search for an available thread*/ 
+                if(client[i]==0)
+                {
+                    pthread_create(&thread_id[i], NULL, process_request((int)connfd, (int)listenfd, (int**)&client), NULL);
+                    pthread_join(thread_id[i], NULL);
+                }
+            }
             exit(0);
         }
-        close(connfd);
     }
 }
 
@@ -162,4 +148,65 @@ void EXIT(int connfd)
     char buff[30]= "Terminating your MSA Session !";
 
     write(connfd, buff, strlen(buff));
+}
+
+// Sigfunc *signal(int signo, Sigfunc *func)
+// {
+//     struct sigaction act, oact;
+
+//     act.sa_handler = func;
+
+//     sigemptyset(&act.sa_mask);
+//     act.sa_flags = 0;
+
+//     if (sigaction(signo, &act, &oact) < 0)
+//     {
+//         return (SIG_ERR);
+//     }
+//     return (oact.sa_handler);
+// }
+
+void sig_chld(int signo)
+{
+    pid_t pid;
+    int stat;
+
+    pid = wait(&stat);
+
+    return;
+}
+
+void* process_request(void* connfd, void* listenfd, void** clientPtr)
+{
+    char decision[] = "TIME";
+
+    close(listenfd);
+
+    if(strcmp(decision, "TIME")==0)
+    {
+        TIME(connfd);
+    }
+    
+    if(strcmp(decision, "USERS")==0)
+    {
+        USERS(connfd);               
+    }
+
+    if(strcmp(decision, "SUM")==0)
+    {
+        SUM(connfd, 5,6);
+    }
+
+    if(strcmp(decision, "FILES")==0)
+    {
+        FILES(connfd, "file1.txt");
+    }
+
+    if(strcmp(decision, "EXIT")==0)
+    {
+        EXIT(connfd);
+    }
+
+    close(connfd);
+    
 }

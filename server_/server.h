@@ -13,6 +13,17 @@
 #include <errno.h>
 #include <termio.h>
 #include <termios.h>
+#include <signal.h>
+#include <pthread.h>
+
+struct threadclient{
+    pthread_t threadid;
+    int connection;
+    int address;
+    int port;
+}threadclient;
+
+typedef struct threadclient threadC;
 
 #define LISTENQ 1024
 #define MAXLINE 4096
