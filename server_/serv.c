@@ -74,8 +74,10 @@ int main(int argc, char **argv)
                 /*search for an available thread*/ 
                 if(client[i]==0)
                 {
+                    threadCount++;
                     pthread_create(&thread_id[i], NULL, process_request((int)connfd, (int)listenfd, (int**)&client), NULL);
                     pthread_join(thread_id[i], NULL);
+                    break;
                 }
             }
             exit(0);
