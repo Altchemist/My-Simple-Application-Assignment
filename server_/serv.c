@@ -9,8 +9,8 @@ void EXIT(int connfd);
 typedef void Sigfunc(int);
 Sigfunc *signal(int signo, Sigfunc *func);
 void sig_chld(int signo);
-void* process_request(void* connfd, void* listenfd, void** clientPtr)
-
+void* process_client_request(void* clientStruct);
+int getpeername(int sockfd, struct sockaddr* peeraddr, socklen_t *addrlen);
 
 
 int main(int argc, char **argv)
@@ -19,15 +19,21 @@ int main(int argc, char **argv)
     ssize_t n;
     struct sockaddr_in servaddr;
     char buff[MAXLINE];
+
+    pthread_mutex_t file_lock;
+    pthread_mutex_init(&file_lock, NULL);
+
     pid_t pid;
-    char decision[] = "FILES";
+    char decision[] = "TIME";
     int i;
 
+    int threadCount = 0;
     int max_client = 1;
     int max_time = 120;
     int client[max_client];
     int sockfd[max_client];
     pthread_t thread_id[max_client];
+    struct threadclient *clientArr;
 
     if(argc>1)
     {
@@ -37,12 +43,17 @@ int main(int argc, char **argv)
     }
     else
     {
-        int sockfd[max_client];
         pthread_t thread_id[max_client];
         int client[max_client];
+        clientArr = (struct threadclient*)calloc(max_client, sizeof(struct threadclient));
     }
 
-    int threadCount = 0;
+    
+    /*Initialize available client index for prethreading*/
+    for(i=0; i<max_client; i++)
+    {
+        client[i] = 0;
+    }
 
     listenfd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -68,14 +79,23 @@ int main(int argc, char **argv)
         }
         else
         {
-            close(connfd);
+            /*Check available thread*/
             for(i=0; i<max_client; i++)
             {
                 /*search for an available thread*/ 
                 if(client[i]==0)
                 {
                     threadCount++;
-                    pthread_create(&thread_id[i], NULL, process_request((int)connfd, (int)listenfd, (int**)&client), NULL);
+
+                    client[i] == 1;
+
+                    /*Initializie struct for client containing important details*/
+                    clientArr[i].index = i;
+                    clientArr[i].serverConn = listenfd;
+                    clientArr[i].clientConn = connfd;
+                    clientArr[i].threadid = thread_id[i];
+
+                    pthread_create(&thread_id[i], NULL, process_client_request, (void*)&clientArr[i]);
                     pthread_join(thread_id[i], NULL);
                     break;
                 }
@@ -83,8 +103,12 @@ int main(int argc, char **argv)
             exit(0);
         }
     }
-}
 
+    free(clientArr);
+    pthread_mutex_destroy(&file_lock);
+
+    return 0;
+}
 
 void SUM(int connfd, int x, int y)
 {
@@ -168,47 +192,74 @@ void EXIT(int connfd)
 //     return (oact.sa_handler);
 // }
 
-void sig_chld(int signo)
+// void sig_chld(int signo)
+// {
+//     pid_t pid;
+//     int stat;
+
+//     pid = wait(&stat);
+
+//     return;
+// }
+
+void* process_client_request(void* clientStruct)
 {
-    pid_t pid;
-    int stat;
+    struct threadclient* client;
+    client = (struct threadclient*) clientStruct;
 
-    pid = wait(&stat);
+    char decision[50];
+    close(client->serverConn);
 
-    return;
+    regex_t sumPattern;
+    regex_t filePattern;
+
+    const char space[2] = " ";
+    char* token;
+
+    int match_sum = regcomp(&sumPattern, "^SUM(\d+,\d+)$",0);
+    int match_file = regcomp(&filePattern, "^FILES\s\w+\.txt$", 0);
+
+    match_file = regexec(&filePattern, decision, 0, NULL, 0);
+    match_sum = regexec(&sumPattern, decision, 0, NULL, 0);
+    
+    if(read(client->clientConn, decision, 50)==-1){
+        write(client->clientConn, "Error reading data received from client", 39);
+    }
+    else if(strcmp(decision, "TIME")==0)
+    {
+        TIME(client->clientConn);
+    }
+    else if(strcmp(decision, "USERS")==0)
+    {
+        USERS(client->clientConn);               
+    }
+    else if(match_sum==0)
+    {
+        SUM(client->clientConn, 5,6);
+    }
+    else if(match_file==0)
+    {
+        token = strtok(decision, space);
+        
+        FILES(client->clientConn, token[1]);
+    }
+    else if(strcmp(decision, "EXIT")==0)
+    {
+        EXIT(client->clientConn);
+    }
+    else
+    {
+        write(client->clientConn, "Wrong command",13);
+    }
+    close(client->clientConn);
 }
 
-void* process_request(void* connfd, void* listenfd, void** clientPtr)
+void log_user()
 {
-    char decision[] = "TIME";
-
-    close(listenfd);
-
-    if(strcmp(decision, "TIME")==0)
-    {
-        TIME(connfd);
-    }
     
-    if(strcmp(decision, "USERS")==0)
-    {
-        USERS(connfd);               
-    }
+}
 
-    if(strcmp(decision, "SUM")==0)
-    {
-        SUM(connfd, 5,6);
-    }
+void remove_user()
+{
 
-    if(strcmp(decision, "FILES")==0)
-    {
-        FILES(connfd, "file1.txt");
-    }
-
-    if(strcmp(decision, "EXIT")==0)
-    {
-        EXIT(connfd);
-    }
-
-    close(connfd);
-    
 }
