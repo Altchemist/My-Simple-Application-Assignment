@@ -16,6 +16,8 @@
 #include <signal.h>
 #include <pthread.h>
 #include <regex.h>
+#include <error.h>
+#include <err.h>
 
 struct threadclient{
     pthread_t threadid;

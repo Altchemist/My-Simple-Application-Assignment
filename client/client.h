@@ -12,6 +12,9 @@
 #include <termios.h>
 #include <termio.h>
 #include <regex.h>
+#include <errno.h>
+#include <err.h>
+#include <error.h>
 
 #define	bzero(ptr,n)		memset(ptr, 0, n)
 #define SockAddr struct sockaddr
