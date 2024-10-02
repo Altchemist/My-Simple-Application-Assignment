@@ -1,265 +1,269 @@
-#include "server.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <pthread.h>
+#include <sys/time.h> /* For struct timeval */
+#include <sys/select.h> /* For fd_set */
+#include <errno.h>
 
-/*Prototyping functions*/
-void TIME(int connfd);
-void USERS(int connfd);
-void SUM(int connfd, int x, int y);
-void FILES(int connfd, const char filename[10]);
-void EXIT(int connfd);
-typedef void Sigfunc(int);
-Sigfunc *signal(int signo, Sigfunc *func);
-void sig_chld(int signo);
-void* process_client_request(void* clientStruct);
-int getpeername(int sockfd, struct sockaddr* peeraddr, socklen_t *addrlen);
+#define MAX_BUFFER 1024
+#define MAX_CLIENTS 10
+#define MAX_TIME 120
 
+struct client_info {
+    int socket;
+    struct sockaddr_in address;
+};
 
-int main(int argc, char **argv)
-{
-    int listenfd, connfd;
-    ssize_t n;
-    struct sockaddr_in servaddr;
-    char buff[MAXLINE];
+struct thread_args {
+    struct client_info *client;
+    int max_time;
+};
 
-    pthread_mutex_t file_lock;
-    pthread_mutex_init(&file_lock, NULL);
+struct client_info clients[MAX_CLIENTS];
+int client_count = 0;
+pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-    pid_t pid;
-    char decision[] = "TIME";
+void update_users_file() {
+    FILE *file;
     int i;
-
-    int threadCount = 0;
-    int max_client = 1;
-    int max_time = 120;
-    int client[max_client];
-    int sockfd[max_client];
-    pthread_t thread_id[max_client];
-    struct threadclient *clientArr;
-
-    if(argc>1)
-    {
-        /*Max client and Max time passed as argument*/
-        max_client = atoi(argv[1]);
-        max_time = atoi(argv[2]);
-    }
-    else
-    {
-        pthread_t thread_id[max_client];
-        int client[max_client];
-        clientArr = (struct threadclient*)calloc(max_client, sizeof(struct threadclient));
-    }
-
     
-    /*Initialize available client index for prethreading*/
-    for(i=0; i<max_client; i++)
-    {
-        client[i] = 0;
+    file = fopen("users", "w");
+    if (file == NULL) {
+        perror("Error opening users file");
+        return;
     }
-
-    listenfd = socket(AF_INET, SOCK_STREAM, 0);
-
-    bzero(&servaddr, sizeof(servaddr));
-
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    servaddr.sin_port = htons(52000);
-
-
-    bind(listenfd, (SockAddr *) &servaddr, sizeof(servaddr));
-
-    listen(listenfd, LISTENQ);
     
-    for(;;)
-    {
-        connfd = accept(listenfd, (SockAddr*) NULL, NULL);
-
-        if(threadCount==max_client)
-        {
-            sprintf(buff, "Max amount of client accepted reached : %d", max_client);
-            write(connfd, buff, strlen(buff));
-        }
-        else
-        {
-            /*Check available thread*/
-            for(i=0; i<max_client; i++)
-            {
-                /*search for an available thread*/ 
-                if(client[i]==0)
-                {
-                    threadCount++;
-
-                    client[i] == 1;
-
-                    /*Initializie struct for client containing important details*/
-                    clientArr[i].index = i;
-                    clientArr[i].serverConn = listenfd;
-                    clientArr[i].clientConn = connfd;
-                    clientArr[i].threadid = thread_id[i];
-
-                    pthread_create(&thread_id[i], NULL, process_client_request, (void*)&clientArr[i]);
-                    pthread_join(thread_id[i], NULL);
-                    break;
-                }
-            }
-            exit(0);
-        }
+    for (i = 0; i < client_count; i++) {
+        fprintf(file, "%s:%d\n", inet_ntoa(clients[i].address.sin_addr), ntohs(clients[i].address.sin_port));
     }
-
-    free(clientArr);
-    pthread_mutex_destroy(&file_lock);
-
-    return 0;
-}
-
-void SUM(int connfd, int x, int y)
-{
-    int value = x+y;
-    char buffer[40];
-    sprintf(buffer, "The sum of %d and %d is : %d",x,y,value);
-    write(connfd, buffer, strlen(buffer));
-}
-
-void TIME(int connfd)
-{
-    char buff[MAXLINE];
-    time_t ticks;
     
-    ticks = time(NULL);
-    snprintf(buff, sizeof(buff), "%.24s\r\n", ctime(&ticks));
-    write(connfd, buff, strlen(buff));
-}
-
-void USERS(int connfd)
-{
-    FILE *userfile = fopen("users.txt", "r");
-    
-    char readBuffer[100];
-
-    if(userfile==NULL)
-    {
-        sprintf(readBuffer, "File error: The file does not exist\n");
-        write(connfd, readBuffer, strlen(readBuffer));
-    }
-
-    while(fgets(readBuffer, 100, userfile))
-    {
-        write(connfd, readBuffer, strlen(readBuffer));
-    }
-
-    fclose(userfile);
-}
-
-void FILES(int connfd, const char filename[10])
-{
-    FILE *file = fopen(filename, "r");
-
-    char readBuffer[100];
-
-    if(file == NULL)
-    {
-        sprintf(readBuffer, "File error: The file does not exist\n");
-        write(connfd, readBuffer, strlen(readBuffer));
-        printf("error\n");
-    }
-
-    while(fgets(readBuffer, 100, file))
-    {
-        write(connfd, readBuffer, strlen(readBuffer));
-    }
-
     fclose(file);
 }
 
-void EXIT(int connfd)
-{
-    char buff[30]= "Terminating your MSA Session !";
-
-    write(connfd, buff, strlen(buff));
+void add_client(struct client_info *client) {
+    pthread_mutex_lock(&clients_mutex);
+    
+    if (client_count < MAX_CLIENTS) {
+        clients[client_count] = *client;
+        client_count++;
+        update_users_file();
+    }
+    
+    pthread_mutex_unlock(&clients_mutex);
 }
 
-// Sigfunc *signal(int signo, Sigfunc *func)
-// {
-//     struct sigaction act, oact;
-
-//     act.sa_handler = func;
-
-//     sigemptyset(&act.sa_mask);
-//     act.sa_flags = 0;
-
-//     if (sigaction(signo, &act, &oact) < 0)
-//     {
-//         return (SIG_ERR);
-//     }
-//     return (oact.sa_handler);
-// }
-
-// void sig_chld(int signo)
-// {
-//     pid_t pid;
-//     int stat;
-
-//     pid = wait(&stat);
-
-//     return;
-// }
-
-void* process_client_request(void* clientStruct)
-{
-    struct threadclient* client;
-    client = (struct threadclient*) clientStruct;
-
-    char decision[50];
-    close(client->serverConn);
-
-    regex_t sumPattern;
-    regex_t filePattern;
-
-    const char space[2] = " ";
-    char* token;
-
-    int match_sum = regcomp(&sumPattern, "^SUM(\d+,\d+)$",0);
-    int match_file = regcomp(&filePattern, "^FILES\s\w+\.txt$", 0);
-
-    match_file = regexec(&filePattern, decision, 0, NULL, 0);
-    match_sum = regexec(&sumPattern, decision, 0, NULL, 0);
+void remove_client(struct client_info *client) {
+    int i;
+    pthread_mutex_lock(&clients_mutex);
     
-    if(read(client->clientConn, decision, 50)==-1){
-        write(client->clientConn, "Error reading data received from client", 39);
+    for (i = 0; i < client_count; i++) {
+        if (clients[i].socket == client->socket) {
+            while (i < client_count - 1) {
+                clients[i] = clients[i + 1];
+                i++;
+            }
+            client_count--;
+            update_users_file();
+            break;
+        }
     }
-    else if(strcmp(decision, "TIME")==0)
-    {
-        TIME(client->clientConn);
+    
+    pthread_mutex_unlock(&clients_mutex);
+}
+
+void get_users(char *buffer) {
+    int i;
+    char temp[MAX_BUFFER];
+    
+    pthread_mutex_lock(&clients_mutex);
+    
+    buffer[0] = '\0';
+    for (i = 0; i < client_count; i++) {
+        sprintf(temp, "%s:%d\n", inet_ntoa(clients[i].address.sin_addr), ntohs(clients[i].address.sin_port));
+        strcat(buffer, temp);
     }
-    else if(strcmp(decision, "USERS")==0)
-    {
-        USERS(client->clientConn);               
-    }
-    else if(match_sum==0)
-    {
-        SUM(client->clientConn, 5,6);
-    }
-    else if(match_file==0)
-    {
-        token = strtok(decision, space);
+    
+    pthread_mutex_unlock(&clients_mutex);
+}
+
+void process_command(char *command, char *response) {
+    if (strncmp(command, "SUM(", 4) == 0 && command[strlen(command) - 1] == ')') {
+        int x, y;
+        if (sscanf(command, "SUM(%d,%d)", &x, &y) == 2) {
+            sprintf(response, "The result is: %d", x + y);
+        } else {
+            strcpy(response, "Invalid SUM command");
+        }
+    } else if (strcmp(command, "TIME") == 0) {
+        time_t now = time(NULL);
+        strftime(response, MAX_BUFFER, "%Y-%m-%d %H:%M:%S", localtime(&now));
+    } else if (strcmp(command, "USERS") == 0) {
+        get_users(response);
+    } else if (strncmp(command, "FILE ", 5) == 0) {
+        FILE *file;
+        char filename[MAX_BUFFER];
         
-        FILES(client->clientConn, token[1]);
+        sscanf(command, "FILE %s", filename);
+        file = fopen(filename, "r");
+        if (file != NULL) {
+            size_t bytes_read = fread(response, 1, MAX_BUFFER - 1, file);
+            response[bytes_read] = '\0';
+            fclose(file);
+        } else {
+            sprintf(response, "Error: File '%s' not found", filename);
+        }
+    } else if (strcmp(command, "EXIT") == 0) {
+        strcpy(response, "Thank you for using MSA. Goodbye!");
+    } else {
+        strcpy(response, "Invalid command");
     }
-    else if(strcmp(decision, "EXIT")==0)
-    {
-        EXIT(client->clientConn);
-    }
-    else
-    {
-        write(client->clientConn, "Wrong command",13);
-    }
-    close(client->clientConn);
 }
 
-void log_user()
-{
+void *handle_client(void *arg) {
+    struct thread_args *args = (struct thread_args *)arg;
+    struct client_info *client = args->client;
+    int max_time = args->max_time;
+    char buffer[MAX_BUFFER], response[MAX_BUFFER];
+    int bytes_received;
+    time_t last_activity;
     
+    free(arg);
+    
+    add_client(client);
+    printf("New connection from %s:%d\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
+    
+    last_activity = time(NULL);
+    
+    while (1) {
+        fd_set read_fds;
+        struct timeval tv;
+        int activity;
+        
+        FD_ZERO(&read_fds);
+        FD_SET(client->socket, &read_fds);
+        
+        tv.tv_sec = max_time - (time(NULL) - last_activity);
+        tv.tv_usec = 0;
+        
+        activity = select(client->socket + 1, &read_fds, NULL, NULL, &tv);
+        
+        if (activity < 0) {
+            perror("select error");
+            break;
+        } else if (activity == 0) {
+            strcpy(response, "Timeout. Closing connection.");
+            send(client->socket, response, strlen(response), 0);
+            break;
+        }
+        
+        bytes_received = recv(client->socket, buffer, MAX_BUFFER - 1, 0);
+        if (bytes_received <= 0) {
+            if (bytes_received < 0) {
+                perror("recv failed");
+            }
+            break;
+        }
+        
+        buffer[bytes_received] = '\0';
+        last_activity = time(NULL);
+        
+        process_command(buffer, response);
+        send(client->socket, response, strlen(response), 0);
+        
+        if (strcmp(buffer, "EXIT") == 0) {
+            break;
+        }
+    }
+    
+    remove_client(client);
+    close(client->socket);
+    printf("Connection from %s:%d closed\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
+    
+    return NULL;
 }
 
-void remove_user()
-{
-
+int main(int argc, char *argv[]) {
+    int server_socket, port, max_clients, max_time;
+    struct sockaddr_in server_addr;
+    pthread_t thread_id;
+    
+    if (argc != 5) {
+        fprintf(stderr, "Usage: %s <host> <port> <max_clients> <max_time>\n", argv[0]);
+        exit(1);
+    }
+    
+    port = atoi(argv[2]);
+    max_clients = atoi(argv[3]);
+    max_time = atoi(argv[4]);
+    
+    if (max_clients < 1 || max_clients > 10 || max_time < 1 || max_time > 120) {
+        fprintf(stderr, "Invalid max_clients or max_time\n");
+        exit(1);
+    }
+    
+    server_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_socket == -1) {
+        perror("Error creating socket");
+        exit(1);
+    }
+    
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = inet_addr(argv[1]);
+    server_addr.sin_port = htons(port);
+    
+    if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Error binding socket");
+        exit(1);
+    }
+    
+    if (listen(server_socket, max_clients) < 0) {
+        perror("Error listening on socket");
+        exit(1);
+    }
+    
+    printf("Server started on %s:%d\n", argv[1], port);
+    
+    while (1) {
+        struct client_info *client = malloc(sizeof(struct client_info));
+        socklen_t client_len = sizeof(client->address);
+        struct thread_args *args;
+        
+        client->socket = accept(server_socket, (struct sockaddr *)&client->address, &client_len);
+        if (client->socket < 0) {
+            perror("Error accepting connection");
+            free(client);
+            continue;
+        }
+        
+        if (client_count >= max_clients) {
+            const char *msg = "Server is full. Try again later.";
+            send(client->socket, msg, strlen(msg), 0);
+            close(client->socket);
+            free(client);
+            continue;
+        }
+        
+        args = malloc(sizeof(struct thread_args));
+        args->client = client;
+        args->max_time = max_time;
+        
+        if (pthread_create(&thread_id, NULL, handle_client, (void *)args) < 0) {
+            perror("Error creating thread");
+            free(client);
+            free(args);
+            continue;
+        }
+        
+        pthread_detach(thread_id);
+    }
+    
+    close(server_socket);
+    return 0;
 }

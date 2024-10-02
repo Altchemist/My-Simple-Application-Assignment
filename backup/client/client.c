@@ -1,113 +1,95 @@
-#include "client.h"
-void logging(const char input[MAXLINE]);
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
-int main(int argc, char **argv)
-{
-    int sockfd, n;
+#define MAX_BUFFER 1024
 
-    char receiveBuffer[MAXLINE];
-    char sendBuffer[MAXLINE]="TIME";
-
-    regex_t sumPattern;
-    regex_t filePattern;
-
-    int match_sum = regcomp(&sumPattern, "^SUM(\d+,\d+)$",0);
-    int match_file = regcomp(&filePattern, "^FILES\s\w+\.txt$", 0);
-    struct sockaddr_in servaddr;
-
-    if(argc!=2)
-    {
-        printf("usage: msa.out <server's IPaddress>\n");
-    }
-
-    if ((sockfd=socket(AF_INET, SOCK_STREAM, 0))<0)
-    {
-        printf("Socket Error\n");
-    }
-
-    bzero(&servaddr, sizeof(servaddr));
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_port = htons(52000);
-
-    if(inet_pton(AF_INET, argv[1], &servaddr.sin_addr) <= 0)
-    {
-        printf("inet_pton error for %s\n", argv[1]);
-    }
-
-    if(connect(sockfd, (SockAddr*) &servaddr, sizeof(servaddr)) < 0)
-    {
-        printf("connect error\n");
-    }
-    int terminate = 0;
-
-
-    while (terminate!=1)
-    {
-        fgets(sendBuffer, MAXLINE, stdin);
-        sendBuffer[strcspn(sendBuffer, "\n")] = 0;
-
-        match_file = regexec(&filePattern, sendBuffer, 0, NULL, 0);
-        match_sum = regexec(&sumPattern, sendBuffer, 0, NULL, 0);
-
-        if(IS_EXIT) 
-        {
-            write(sockfd, sendBuffer, strlen(sendBuffer));
-            terminate=1;
-        }
-        else if (IS_FILES)
-        {
-            write(sockfd, sendBuffer, strlen(sendBuffer));
-        }
-        
-        else if (IS_SUM)
-        {
-            write(sockfd, sendBuffer, strlen(sendBuffer));
-        }
-        
-        else if(IS_TIME)
-        {
-            write(sockfd, sendBuffer, strlen(sendBuffer));
-        }
-        else if (IS_USERS)
-        {
-            write(sockfd, sendBuffer, strlen(sendBuffer));
-            logging(sendBuffer);
-        }
-        else
-        {
-            printf("Wrong command input. \n");
-            printf("###########################################################################\n");
-            printf("###                My Simple Application Commands 			###\n");
-            printf("###									###\n");
-            printf("### TIME                 : get current time from server			###\n");
-            printf("### USERS                : get all users currently connected to server	###\n");
-            printf("### FILES <filename.txt> : get all content of file given		###\n");
-            printf("### SUM(value1,value2)   : get sum of 2 values				###\n");
-            printf("### EXIT 	         : exit from application			###\n");
-            printf("###########################################################################\n");
-        }
-
-        /*Check if data received from server, and either output error or log and print data*/
-        if (read(sockfd, receiveBuffer, MAXLINE) == 0)
-        {
-            printf("Error server output");
-        }
-        else
-        {
-            fputs(receiveBuffer, stdout);
-            logging(receiveBuffer);
-        }
-    }
-
-    exit(0);
+void log_message(FILE *log_file, const char *type, const char *message) {
+    fprintf(log_file, "%s: %s\n", type, message);
+    fflush(log_file);
 }
 
-
-void logging(const char input[MAXLINE])
-{
-    FILE* logf = fopen("log.txt", "a");
-
-    fprintf(logf, input);
-
-    fclose(logf);
+int main(int argc, char *argv[]) {
+    int client_socket, port;
+    struct sockaddr_in server_addr;
+    char buffer[MAX_BUFFER];
+    FILE *log_file;
+    
+    if (argc != 3) {
+        fprintf(stderr, "Usage: %s <server_ip> <port>\n", argv[0]);
+        exit(1);
+    }
+    
+    port = atoi(argv[2]);
+    
+    client_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (client_socket == -1) {
+        perror("Error creating socket");
+        exit(1);
+    }
+    
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = inet_addr(argv[1]);
+    server_addr.sin_port = htons(port);
+    
+    if (connect(client_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Error connecting to server");
+        exit(1);
+    }
+    
+    printf("Connected to %s:%d\n", argv[1], port);
+    
+    log_file = fopen("log.txt", "a");
+    if (log_file == NULL) {
+        perror("Error opening log file");
+        exit(1);
+    }
+    
+    while (1) {
+        printf("Client> ");
+        if (fgets(buffer, MAX_BUFFER, stdin) == NULL) {
+            break;
+        }
+        
+        /* Remove newline character */
+        buffer[strcspn(buffer, "\n")] = '\0';
+        
+        if (strlen(buffer) == 0) {
+            continue;
+        }
+        
+        log_message(log_file, "Request", buffer);
+        
+        if (send(client_socket, buffer, strlen(buffer), 0) < 0) {
+            perror("Error sending data");
+            break;
+        }
+        
+        int bytes_received = recv(client_socket, buffer, MAX_BUFFER - 1, 0);
+        if (bytes_received < 0) {
+            perror("Error receiving data");
+            break;
+        } else if (bytes_received == 0) {
+            printf("Server closed the connection\n");
+            break;
+        }
+        
+        buffer[bytes_received] = '\0';
+        printf("%s\n", buffer);
+        
+        log_message(log_file, "Response", buffer);
+        
+        if (strcmp(buffer, "Thank you for using MSA. Goodbye!") == 0) {
+            break;
+        }
+    }
+    
+    fclose(log_file);
+    close(client_socket);
+    return 0;
 }
