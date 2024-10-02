@@ -23,4 +23,8 @@
 
 #define MAXLINE 4096
 
+ssize_t readn(int filedes, void *buff, size_t nbytes);
+ssize_t writen(int filedes, const void *buff, size_t nbytes);
+ssize_t readline(int filedes, void *buff, size_t maxlen);
+
 #endif
