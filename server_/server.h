@@ -1,5 +1,6 @@
 #ifndef __server_h
 #define __server_h
+#endif
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -24,15 +25,15 @@ struct threadclient{
     int index;
     int serverConn;
     int clientConn;
-    int address;
-    int port;
+    uint32_t address;
+    u_int16_t port;
+    pthread_mutex_t *file_mutex;
 }threadclient;
 
 typedef struct threadclient threadC;
 
 ssize_t readn(int filedes, void *buff, size_t nbytes);
 ssize_t writen(int filedes, const void *buff, size_t nbytes);
-ssize_t readline(int filedes, void *buff, size_t maxlen);
 
 #define LISTENQ 1024
 #define MAXLINE 4096
@@ -43,6 +44,4 @@ ssize_t readline(int filedes, void *buff, size_t maxlen);
 #define	bzero(ptr,n)		memset(ptr, 0, n)
 /* $$.If bzero$$ */
 /* $$.If memset$$ */
-#endif
-
 #endif

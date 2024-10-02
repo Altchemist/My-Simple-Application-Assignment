@@ -18,6 +18,8 @@ int main(int argc, char **argv)
     int listenfd, connfd;
     ssize_t n;
     struct sockaddr_in servaddr;
+    struct sockaddr_in client_addr;
+    socklen_t addr_len = sizeof(client_addr);
     char buff[MAXLINE];
 
     pthread_mutex_t file_lock;
@@ -88,12 +90,17 @@ int main(int argc, char **argv)
                     threadCount++;
 
                     client[i] == 1;
-
                     /*Initializie struct for client containing important details*/
                     clientArr[i].index = i;
                     clientArr[i].serverConn = listenfd;
                     clientArr[i].clientConn = connfd;
                     clientArr[i].threadid = thread_id[i];
+
+                    if(getpeername(clientArr[i].clientConn, (struct sockaddr*)&client_addr, &addr_len) == 0)
+                    {
+                        clientArr[i].address = client_addr.sin_addr.s_addr;
+                        clientArr[i].port = ntohs(client_addr.sin_port);
+                    }
 
                     pthread_create(&thread_id[i], NULL, process_client_request, (void*)&clientArr[i]);
                     pthread_join(thread_id[i], NULL);
@@ -254,14 +261,78 @@ void* process_client_request(void* clientStruct)
     close(client->clientConn);
 }
 
-void log_user()
+void log_user(struct threadclient* clientPtr)
 {
-    
+
+    char client_IP[INET_ADDRSTRLEN];
+    FILE *file;
+    inet_ntop(AF_INET, &(clientPtr->address), client_IP, INET_ADDRSTRLEN);
+
+    pthread_mutex_lock(clientPtr->file_mutex);
+
+    file = fopen("users.txt", "a");
+
+    if (file ==NULL)
+    {
+        perror("Error opening users.txt");
+        pthread_mutex_unlock(clientPtr->file_mutex);
+        return;
+    }
+
+    fprintf(file, "%s:%u\n", client_IP, clientPtr->port);
+    fclose(file);
+
+    pthread_mutex_unlock(clientPtr->file_mutex);
 }
 
-void remove_user()
+void remove_user(struct threadclient* clientPtr)
 {
+    char ipString[INET6_ADDRSTRLEN];
+    char line[MAXLINE];
+    FILE *file, *temp_file;
+    char temp_filename[] = "users_temp.txt";
 
+    inet_ntop(AF_INET, &(clientPtr->address), ipString, INET_ADDRSTRLEN);
+
+    pthread_mutex_lock(clientPtr->file_mutex);
+
+    file = fopen("users.txt", "r");
+
+    if (file==NULL)
+    {
+        perror("Error opening users.txt");
+        pthread_mutex_unlock(clientPtr->file_mutex);
+    }
+    
+    temp_file = fopen("temp_users.txt", "w");
+
+    if (temp_file==NULL)
+    {
+        perror("Error creating temp_users.txt");
+        fclose(temp_file);
+        pthread_mutex_unlock(clientPtr->file_mutex);
+        return;
+    }
+
+    char client_info[MAXLINE];
+    snprintf(client_info, sizeof(client_info), "%s:%u", ipString, clientPtr->port);
+
+
+    while (fgets(line, sizeof(line), file))
+    {
+        if (strncmp(line, client_info, strlen(client_info)) !=0)
+        {
+            fputs(line, temp_file);
+        }
+    }
+
+    fclose(file);
+    fclose(temp_file);
+
+    remove("users.txt");
+    rename(temp_filename, "users.txt");
+
+    pthread_mutex_unlock(clientPtr->file_mutex);
 }
 
 ssize_t readn(int fd, void *vptr, size_t n)
