@@ -1,0 +1,40 @@
+Terminating your MSA Session !
+Request: TIME
+Response: Timeout. Closing connection.
+Request: EXIT
+Request: EXIT
+Response: Timeout. Closing connection.
+Request: EXIT
+Request: EXIT
+Response: Thank you for using MSA. Goodbye!
+Request: TIME
+Response: 2024-10-05 18:35:35
+Request: TIME
+Response: 2024-10-05 18:35:37
+Request: TIME
+Response: 2024-10-05 18:35:38
+Request: TIME
+Response: 2024-10-05 18:35:38
+Request: TIME
+Response: 2024-10-05 18:35:39
+Request: TIME
+Response: 2024-10-05 18:35:40
+Request: USERS
+Response: 127.0.0.1:43166
+
+Request: TIME
+Response: 2024-10-05 18:35:42
+Request: TIME
+Response: 2024-10-05 18:35:43
+Request: TIME
+Response: 2024-10-05 18:35:46
+Request: EXIT
+Response: Thank you for using MSA. Goodbye!
+Request: SUM(2,3)
+Response: Timeout. Closing connection.
+Request: EXIT
+Request: SUM(2,3)
+Response: The result is: 5
+Request: EXIT
+Response: Timeout. Closing connection.
+Request: EXIT
