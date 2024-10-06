@@ -7,17 +7,24 @@ pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
 void update_users_file() {
     FILE *file;
     int i;
+    struct sockaddr_in peer_addr;
+    socklen_t addr_len = sizeof(struct sockaddr_in);
+    char ip_str[INET_ADDRSTRLEN];
     
     file = fopen("users", "w");
-    if (file == NULL) 
-    {
+    if (file == NULL) {
         perror("Error opening users file");
         return;
     }
     
-    for (i = 0; i < client_count; i++) 
-    {
-        fprintf(file, "%s:%d\n", inet_ntoa(clients[i].address.sin_addr), ntohs(clients[i].address.sin_port));
+    for (i = 0; i < client_count; i++) {
+        if (getpeername(clients[i].socket, (struct sockaddr*)&peer_addr, &addr_len) == 0) {
+            inet_ntop(AF_INET, &(peer_addr.sin_addr), ip_str, INET_ADDRSTRLEN);
+            fprintf(file, "%s:%d\n", ip_str, ntohs(peer_addr.sin_port));
+        } else {
+            perror("Error getting peer name");
+            fprintf(file, "Unknown:0\n");
+        }
     }
     
     fclose(file);
