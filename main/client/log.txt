@@ -38,3 +38,21 @@ Response: The result is: 5
 Request: EXIT
 Response: Timeout. Closing connection.
 Request: EXIT
+Request: SUM(2,3)
+Response: The result is: 5
+Request: USERS
+Response: 127.0.0.1:50686
+
+Request: FILE file1.txt
+Response: This is file 1. It is a sample file.
+Request: FILE file2.txt
+Response: This is file 2. It is a sample file.
+Request: TIME
+Response: 2024-10-06 13:19:31
+Request: EXIT
+Response: Thank you for using MSA. Goodbye!
+Request: SUM(2,3)
+Response: Timeout. Closing connection.
+Request: EXIT
+Request: SUM(2,3)
+Response: Server is full. Try again later.

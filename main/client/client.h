@@ -12,4 +12,6 @@
 
 #define MAX_BUFFER 1024
 
+#define RESPONSE_IS_EXIT strcmp(buffer, "Thank you for using MSA. Goodbye!") == 0
+#define RESPONSE_IS_TIMEOUT strcmp(buffer, "Timeout. Closing connection.") == 0
 #endif

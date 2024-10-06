@@ -76,7 +76,8 @@ int main(int argc, char *argv[]) {
         
         log_message(log_file, "Response", buffer);
         
-        if (strcmp(buffer, "Thank you for using MSA. Goodbye!") == 0) {
+        if (RESPONSE_IS_EXIT || RESPONSE_IS_TIMEOUT) 
+        {
             break;
         }
     }
